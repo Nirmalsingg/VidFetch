@@ -8,14 +8,21 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://vidfetch-us51.onrender.com"
-  ],
+  origin: true,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
+  credentials: false
 }));
+
 app.use(express.json({ limit: "10kb" }));
+app.options("/api/download", (req, res) => {
+  console.log("OPTIONS /api/download received");
+  res.sendStatus(204);
+});
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
 
 const downloadsFolder = path.join(__dirname, "downloads");
 
@@ -29,7 +36,11 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/api/download", (req, res) => {
+app.post("/api/download", async (req, res) => {
+  console.log("DOWNLOAD REQUEST RECEIVED");
+  console.log("Body:", req.body);
+
+  try {
  const { url, quality } = req.body;
 
   console.log("=================================");

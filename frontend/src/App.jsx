@@ -11,7 +11,7 @@ const handleDownload = async () => {
   }
 
   try {
-    const response = await fetch("http://localhost:5000/api/download", {
+    const response = await fetch("https://vidfetch-us5l.onrender.com/api/download", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

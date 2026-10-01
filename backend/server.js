@@ -7,7 +7,14 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://vidfetch-us51.onrender.com"
+  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}));
 app.use(express.json({ limit: "10kb" }));
 
 const downloadsFolder = path.join(__dirname, "downloads");

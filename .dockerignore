@@ -1,0 +1,10 @@
+backend/node_modules
+backend/downloads
+frontend/node_modules
+node_modules
+*.mp4
+*.webm
+*.f398.mp4
+*.f251.webm
+.git
+.gitignore

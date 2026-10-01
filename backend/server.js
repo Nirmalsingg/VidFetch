@@ -7,9 +7,10 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ===============================
+// ========================================
 // CORS
-// ===============================
+// ========================================
+
 app.use(
   cors({
     origin: true,
@@ -19,46 +20,45 @@ app.use(
   })
 );
 
-// ===============================
+// ========================================
 // BODY PARSER
-// ===============================
+// ========================================
+
 app.use(express.json({ limit: "10kb" }));
 
-// ===============================
-// LOG REQUESTS
-// ===============================
+// ========================================
+// REQUEST LOGGER
+// ========================================
+
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
 
-// ===============================
-// DOWNLOAD FOLDER
-// ===============================
+// ========================================
+// DOWNLOADS FOLDER
+// ========================================
+
 const downloadsFolder = path.join(__dirname, "downloads");
 
 if (!fs.existsSync(downloadsFolder)) {
   fs.mkdirSync(downloadsFolder, { recursive: true });
 }
 
-// ===============================
-// CORS PREFLIGHT
-// ===============================
-// CORS PREFLIGHT
-app.options("/api/download", cors());
-
-// ===============================
+// ========================================
 // HEALTH CHECK
-// ===============================
+// ========================================
+
 app.get("/", (req, res) => {
   res.json({
     message: "VidFetch backend is running!",
   });
 });
 
-// ===============================
+// ========================================
 // DOWNLOAD API
-// ===============================
+// ========================================
+
 app.post("/api/download", async (req, res) => {
   console.log("=================================");
   console.log("DOWNLOAD REQUEST RECEIVED");
@@ -68,34 +68,35 @@ app.post("/api/download", async (req, res) => {
   try {
     const { url, quality } = req.body;
 
-    // -------------------------------
+    // ------------------------------------
     // Validate URL
-    // -------------------------------
+    // ------------------------------------
+
     if (!url || typeof url !== "string" || !url.trim()) {
       return res.status(400).json({
         error: "Please enter a valid video URL.",
       });
     }
 
-    const cleanUrl = url.trim();
+    const videoUrl = url.trim();
 
-    console.log("Download requested:");
-    console.log(cleanUrl);
+    // ------------------------------------
+    // Quality
+    // ------------------------------------
 
-    // -------------------------------
-    // Validate quality
-    // -------------------------------
     const allowedQualities = ["360", "480", "720", "1080"];
 
     const selectedQuality = allowedQualities.includes(String(quality))
       ? String(quality)
       : "720";
 
+    console.log("Download URL:", videoUrl);
     console.log("Selected quality:", selectedQuality);
 
-    // -------------------------------
-    // Output filename
-    // -------------------------------
+    // ------------------------------------
+    // Unique filename
+    // ------------------------------------
+
     const baseName = `video-${Date.now()}`;
 
     const outputTemplate = path.join(
@@ -103,17 +104,19 @@ app.post("/api/download", async (req, res) => {
       `${baseName}.%(ext)s`
     );
 
-    // -------------------------------
+    // ------------------------------------
     // yt-dlp format
-    // -------------------------------
+    // ------------------------------------
+
     const format = `bv*[height<=${selectedQuality}]+ba/b[height<=${selectedQuality}]`;
 
     console.log("Format:", format);
     console.log("Starting yt-dlp...");
 
-    // -------------------------------
+    // ------------------------------------
     // Start yt-dlp
-    // -------------------------------
+    // ------------------------------------
+
     const ytDlp = spawn("python", [
       "-m",
       "yt_dlp",
@@ -125,33 +128,37 @@ app.post("/api/download", async (req, res) => {
       "mp4",
       "-o",
       outputTemplate,
-      cleanUrl,
+      videoUrl,
     ]);
 
     let errorOutput = "";
 
-    // -------------------------------
+    // ------------------------------------
     // stdout
-    // -------------------------------
+    // ------------------------------------
+
     ytDlp.stdout.on("data", (data) => {
       const message = data.toString();
+
       console.log("[yt-dlp]", message);
     });
 
-    // -------------------------------
+    // ------------------------------------
     // stderr
-    // -------------------------------
+    // ------------------------------------
+
     ytDlp.stderr.on("data", (data) => {
       const message = data.toString();
 
       errorOutput += message;
 
-      console.log("[yt-dlp error]", message);
+      console.log("[yt-dlp]", message);
     });
 
-    // -------------------------------
+    // ------------------------------------
     // Spawn error
-    // -------------------------------
+    // ------------------------------------
+
     ytDlp.on("error", (error) => {
       console.error("Failed to start yt-dlp:", error);
 
@@ -163,31 +170,34 @@ app.post("/api/download", async (req, res) => {
       }
     });
 
-    // -------------------------------
+    // ------------------------------------
     // Process finished
-    // -------------------------------
+    // ------------------------------------
+
     ytDlp.on("close", (code) => {
       console.log("yt-dlp finished with code:", code);
 
-      // -----------------------------
+      // ----------------------------------
       // Download failed
-      // -----------------------------
+      // ----------------------------------
+
       if (code !== 0) {
         console.log("YT-DLP FAILED");
 
         if (!res.headersSent) {
           return res.status(500).json({
             error: "Video download failed.",
-            details: errorOutput,
+            details: errorOutput || "yt-dlp exited with an error.",
           });
         }
 
         return;
       }
 
-      // -----------------------------
+      // ----------------------------------
       // Find downloaded file
-      // -----------------------------
+      // ----------------------------------
+
       let files;
 
       try {
@@ -216,9 +226,10 @@ app.post("/api/download", async (req, res) => {
           }
         });
 
-      // -----------------------------
+      // ----------------------------------
       // File not found
-      // -----------------------------
+      // ----------------------------------
+
       if (matchingFiles.length === 0) {
         console.log("DOWNLOAD FAILED: File not found.");
 
@@ -232,9 +243,10 @@ app.post("/api/download", async (req, res) => {
         return;
       }
 
-      // -----------------------------
+      // ----------------------------------
       // Prefer MP4
-      // -----------------------------
+      // ----------------------------------
+
       const mp4File = matchingFiles.find((file) =>
         file.toLowerCase().endsWith(".mp4")
       );
@@ -244,39 +256,42 @@ app.post("/api/download", async (req, res) => {
       console.log("DOWNLOAD SUCCESSFUL");
       console.log("Actual file:", actualFile);
 
-      // -----------------------------
+      // ----------------------------------
       // Send file
-      // -----------------------------
-      res.download(actualFile, "VidFetch-video.mp4", (err) => {
-        if (err) {
-          console.error("Sending error:", err);
-        } else {
-          console.log("File sent successfully.");
-        }
+      // ----------------------------------
 
-        // ---------------------------
-        // Delete temporary file
-        // ---------------------------
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(actualFile)) {
-              fs.unlinkSync(actualFile);
-              console.log("Temporary file deleted.");
-            }
-          } catch (error) {
-            console.error(
-              "Could not delete temporary file:",
-              error.message
-            );
+      res.download(
+        actualFile,
+        "VidFetch-video.mp4",
+        (err) => {
+          if (err) {
+            console.error("File sending error:", err);
+          } else {
+            console.log("File sent successfully.");
           }
-        }, 5000);
-      });
+
+          // --------------------------------
+          // Delete temporary file
+          // --------------------------------
+
+          setTimeout(() => {
+            try {
+              if (fs.existsSync(actualFile)) {
+                fs.unlinkSync(actualFile);
+
+                console.log("Temporary file deleted:", actualFile);
+              }
+            } catch (deleteError) {
+              console.error(
+                "Could not delete temporary file:",
+                deleteError
+              );
+            }
+          }, 5000);
+        }
+      );
     });
   } catch (error) {
-    // IMPORTANT:
-    // This catch fixes the previous
-    // "Missing catch or finally after try" error.
-
     console.error("DOWNLOAD ROUTE ERROR:", error);
 
     if (!res.headersSent) {
@@ -288,9 +303,10 @@ app.post("/api/download", async (req, res) => {
   }
 });
 
-// ===============================
+// ========================================
 // GLOBAL ERROR HANDLER
-// ===============================
+// ========================================
+
 app.use((err, req, res, next) => {
   console.error("SERVER ERROR:", err);
 
@@ -302,9 +318,12 @@ app.use((err, req, res, next) => {
   }
 });
 
-// ===============================
+// ========================================
 // START SERVER
-// ===============================
+// ========================================
+
 app.listen(PORT, () => {
-  console.log(`VidFetch backend running on http://localhost:${PORT}`);
+  console.log(
+    `VidFetch backend running on port ${PORT}`
+  );
 });
